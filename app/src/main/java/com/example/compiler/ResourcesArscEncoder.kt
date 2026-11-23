@@ -48,12 +48,12 @@ object ResourcesArscEncoder {
         val keyStringsOffset = typeStringsOffset + typeStringsPool.size
 
         val pkgBody = ByteArrayOutputStream()
-        pkgBody.writeBytes(typeStringsPool)
-        pkgBody.writeBytes(keyStringsPool)
-        pkgBody.writeBytes(drawableSpec)
-        pkgBody.writeBytes(drawableType)
-        pkgBody.writeBytes(stringSpec)
-        pkgBody.writeBytes(stringType)
+        pkgBody.write(typeStringsPool)
+        pkgBody.write(keyStringsPool)
+        pkgBody.write(drawableSpec)
+        pkgBody.write(drawableType)
+        pkgBody.write(stringSpec)
+        pkgBody.write(stringType)
         val pkgBodyBytes = pkgBody.toByteArray()
 
         val pkgChunkSize = pkgHeaderSize + pkgBodyBytes.size
@@ -96,7 +96,7 @@ object ResourcesArscEncoder {
             buf.putShort(chars.size.toShort())
             for (c in chars) buf.putShort(c.code.toShort())
             buf.putShort(0)
-            stringData.writeBytes(buf.array())
+            stringData.write(buf.array())
         }
         while (stringData.size() % 4 != 0) stringData.write(0)
         val rawStrings = stringData.toByteArray()

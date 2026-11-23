@@ -1,5 +1,6 @@
 package com.example.compiler
 
+import com.example.data.GitHubExportService
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
 import java.security.KeyPair
@@ -7,7 +8,6 @@ import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.Signature
-import java.util.Base64
 import java.util.Date
 
 /**
@@ -51,7 +51,6 @@ object ApkSigner {
     fun signEntries(entries: Map<String, ByteArray>): SignatureFiles {
         val identity = getOrCreateIdentity()
         val sha256 = MessageDigest.getInstance("SHA-256")
-        val b64 = Base64.getEncoder()
 
         val manifestSb = StringBuilder()
         manifestSb.append("Manifest-Version: 1.0\r\n")
@@ -59,16 +58,16 @@ object ApkSigner {
 
         val sfSections = StringBuilder()
         for ((name, data) in entries.toSortedMap()) {
-            val entryDigest = b64.encodeToString(sha256.digest(data))
+            val entryDigest = GitHubExportService.encodeBase64(sha256.digest(data))
             val sectionText = "Name: $name\r\nSHA-256-Digest: $entryDigest\r\n\r\n"
             manifestSb.append(sectionText)
 
-            val sectionDigest = b64.encodeToString(sha256.digest(sectionText.toByteArray(Charsets.UTF_8)))
+            val sectionDigest = GitHubExportService.encodeBase64(sha256.digest(sectionText.toByteArray(Charsets.UTF_8)))
             sfSections.append("Name: $name\r\nSHA-256-Digest: $sectionDigest\r\n\r\n")
         }
 
         val manifestBytes = manifestSb.toString().toByteArray(Charsets.UTF_8)
-        val manifestDigest = b64.encodeToString(sha256.digest(manifestBytes))
+        val manifestDigest = GitHubExportService.encodeBase64(sha256.digest(manifestBytes))
 
         val sfHeader = StringBuilder()
         sfHeader.append("Signature-Version: 1.0\r\n")
@@ -231,19 +230,19 @@ object ApkSigner {
                 out.write(len and 0xFF)
             }
         }
-        out.writeBytes(content)
+        out.write(content)
         return out.toByteArray()
     }
 
     private fun derSeq(vararg items: ByteArray): ByteArray {
         val out = ByteArrayOutputStream()
-        for (item in items) out.writeBytes(item)
+        for (item in items) out.write(item)
         return derTlv(0x30, out.toByteArray())
     }
 
     private fun derSet(vararg items: ByteArray): ByteArray {
         val out = ByteArrayOutputStream()
-        for (item in items) out.writeBytes(item)
+        for (item in items) out.write(item)
         return derTlv(0x31, out.toByteArray())
     }
 

@@ -722,7 +722,10 @@ class StudioViewModel(
         }
 
         createProjectWithAi(
-            prompt = "Construis un projet Android complet et compilable en APK basé sur cette conception :\n$conversationSummary".take(1950),
+            prompt = ProjectRepository.trimToUtf8Bytes(
+                "Construis un projet Android complet et compilable en APK basé sur cette conception :\n$conversationSummary",
+                1950
+            ),
             appType = AppType.ANDROID_APP,
             targetLanguage = detectedLang,
             requestedAppName = "",

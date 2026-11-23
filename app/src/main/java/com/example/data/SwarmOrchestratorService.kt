@@ -590,20 +590,23 @@ class SwarmOrchestratorService(
                 val sec = ((t.durationMs ?: 0L) / 1000.0)
                 "• [${t.specialty.shortTitle}] ${t.assignedWorkerLabel} : ${t.status.label} (${String.format("%.1f", sec)}s)"
             }
-            val fullSummary = buildString {
-                append(state.planSummary.trim())
-                append("\n\nTravail collaboratif synchronisé (${String.format("%.1f", totalDurationMs / 1000.0)}s) :\n")
-                append(contributions)
-            }.take(2000)
+            val fullSummary = ProjectRepository.trimToUtf8Bytes(
+                buildString {
+                    append(state.planSummary.trim())
+                    append("\n\nTravail collaboratif synchronisé (${String.format("%.1f", totalDurationMs / 1000.0)}s) :\n")
+                    append(contributions)
+                },
+                2000
+            )
 
             return AppProject(
-                appName = state.appName.ifBlank { "ForgeSwarm" },
+                appName = ProjectRepository.trimToUtf8Bytes(state.appName.ifBlank { "ForgeSwarm" }, 60),
                 packageName = state.packageName.ifBlank { "com.forge.swarmapp" },
                 versionName = "1.0.0",
                 versionCode = 1L,
                 appType = state.appType.name,
-                language = langSummary,
-                prompt = state.planPrompt.take(2000),
+                language = ProjectRepository.trimToUtf8Bytes(langSummary, 40).ifBlank { "Kotlin" },
+                prompt = ProjectRepository.trimToUtf8Bytes(state.planPrompt, 2000).ifBlank { state.appName.ifBlank { "ForgeSwarm" } },
                 summary = fullSummary,
                 accentHex = state.accentHex,
                 playableHtml = htmlCandidate,

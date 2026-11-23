@@ -73,18 +73,18 @@ class ChatRepository(
         return try {
             val uid = requireUserId()
             val cleanRole = if (message.role == "MODEL") "MODEL" else "USER"
-            val cleanSession = message.sessionId.trim().ifBlank { "global_architect" }.take(128)
-            val cleanText = message.text.trim().ifBlank { "..." }.take(30000)
+            val cleanSession = ProjectRepository.trimToUtf8Bytes(message.sessionId.trim(), 128).ifBlank { "global_architect" }
+            val cleanText = ProjectRepository.trimToUtf8Bytes(message.text.trim(), 30000).ifBlank { "..." }
             val cleanSuggestions = message.suggestions.take(8).map { s ->
                 mapOf(
-                    "title" to s.title.take(120),
-                    "filePath" to s.filePath.take(160),
-                    "language" to s.language.take(40),
-                    "code" to s.code.take(12000)
+                    "title" to ProjectRepository.trimToUtf8Bytes(s.title, 120),
+                    "filePath" to ProjectRepository.trimToUtf8Bytes(s.filePath, 160),
+                    "language" to ProjectRepository.trimToUtf8Bytes(s.language, 40),
+                    "code" to ProjectRepository.trimToUtf8Bytes(s.code, 12000)
                 )
             }
             val cleanFollowUps = message.followUps
-                .map { it.trim().take(140) }
+                .map { ProjectRepository.trimToUtf8Bytes(it.trim(), 140) }
                 .filter { it.isNotBlank() }
                 .take(5)
 

@@ -50,9 +50,9 @@ class MultiAiClient(
 ) {
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(20, TimeUnit.SECONDS)
+            .connectTimeout(25, TimeUnit.SECONDS)
+            .readTimeout(90, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 
@@ -132,7 +132,7 @@ class MultiAiClient(
                     }
                     is AiCandidate.ExternalKey -> {
                         val t0 = System.currentTimeMillis()
-                        val raw = withTimeout(60_000L) {
+                        val raw = withTimeout(90_000L) {
                             withContext(Dispatchers.IO) {
                                 executeCompletionCall(
                                     entry = candidate.entry,
@@ -171,7 +171,7 @@ class MultiAiClient(
                 lastError = e
             } catch (e: TimeoutCancellationException) {
                 if (candidate is AiCandidate.ExternalKey) {
-                    vaultRepository?.updateKeyHealth(candidate.entry.id, KeyHealthStatus.ERROR, error = "Timeout 60s")
+                    vaultRepository?.updateKeyHealth(candidate.entry.id, KeyHealthStatus.ERROR, error = "Timeout 90s")
                 }
                 lastError = e
             } catch (e: Exception) {
@@ -202,7 +202,7 @@ class MultiAiClient(
             is AiCandidate.ExternalKey -> {
                 val t0 = System.currentTimeMillis()
                 try {
-                    val raw = withTimeout(60_000L) {
+                    val raw = withTimeout(90_000L) {
                         withContext(Dispatchers.IO) {
                             executeCompletionCall(
                                 entry = candidate.entry,

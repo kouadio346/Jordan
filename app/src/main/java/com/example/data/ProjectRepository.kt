@@ -159,9 +159,9 @@ class ProjectRepository(
             docPath = docRef.path
 
             val updatePayload = mapOf(
-                "lastBuildApkName" to apkName.take(120).ifBlank { "app-signed.apk" },
+                "lastBuildApkName" to trimToUtf8Bytes(apkName.trim(), 120).ifBlank { "app-signed.apk" },
                 "lastBuildSizeBytes" to sizeBytes.coerceAtLeast(0L),
-                "lastBuildSha256" to sha256.take(128).ifBlank { "sha256" },
+                "lastBuildSha256" to trimToUtf8Bytes(sha256.trim(), 128).ifBlank { "sha256" },
                 "updatedAt" to FieldValue.serverTimestamp()
             )
             docRef.update(updatePayload).await()
@@ -193,22 +193,33 @@ class ProjectRepository(
 
     private fun sanitizeProject(project: AppProject, uid: String): AppProject {
         val cleanType = if (project.appType == AppType.GAME.name) AppType.GAME.name else AppType.ANDROID_APP.name
-        val cleanName = project.appName.trim().ifBlank { "MonApp" }.take(60)
+        val cleanName = trimToUtf8Bytes(project.appName.trim(), 60).ifBlank { "MonApp" }
         val cleanPkg = normalizePackageName(project.packageName, cleanName)
-        val cleanVersion = project.versionName.trim().ifBlank { "1.0.0" }.take(20)
+        val cleanVersion = trimToUtf8Bytes(project.versionName.trim(), 20).ifBlank { "1.0.0" }
         val cleanCode = project.versionCode.coerceIn(1L, 999999L)
-        val cleanLang = project.language.trim().ifBlank { "Kotlin" }.take(40)
-        val cleanPrompt = project.prompt.trim().ifBlank { cleanName }.take(2000)
-        val cleanSummary = project.summary.trim().take(2000)
+        val cleanLang = trimToUtf8Bytes(project.language.trim(), 40).ifBlank { "Kotlin" }
+        val cleanPrompt = trimToUtf8Bytes(project.prompt.trim(), 2000).ifBlank { cleanName }
+        val cleanSummary = trimToUtf8Bytes(project.summary.trim(), 2000)
         val cleanAccent = if (project.accentHex.matches(Regex("^#[0-9A-Fa-f]{6}$"))) {
             project.accentHex
         } else {
             "#00E5FF"
         }
-        val cleanHtml = project.playableHtml.take(350000)
+        val cleanHtml = trimToUtf8Bytes(project.playableHtml, 250_000)
         val cleanFiles = project.files
             .filter { it.path.isNotBlank() && it.content.isNotBlank() }
             .take(12)
+            .mapNotNull { file ->
+                val cleanPath = trimToUtf8Bytes(file.path.trim(), 240)
+                val cleanFileLang = trimToUtf8Bytes(file.language.trim(), 40).ifBlank { cleanLang }
+                val cleanContent = trimToUtf8Bytes(file.content, 45_000)
+                if (cleanPath.isBlank() || cleanContent.isBlank()) null
+                else com.example.model.ProjectFile(
+                    path = cleanPath,
+                    language = cleanFileLang,
+                    content = cleanContent
+                )
+            }
             .ifEmpty {
                 listOf(
                     com.example.model.ProjectFile(
@@ -236,6 +247,34 @@ class ProjectRepository(
     }
 
     companion object {
+        /**
+         * Trims [input] cleanly on a Unicode code point boundary so its UTF-8 encoding
+         * never exceeds [maxBytes]. Matches Firestore `string.size()` UTF-8 byte counting.
+         */
+        fun trimToUtf8Bytes(input: String, maxBytes: Int): String {
+            if (maxBytes <= 0 || input.isEmpty()) return ""
+            val utf8 = input.toByteArray(Charsets.UTF_8)
+            if (utf8.size <= maxBytes) return input
+            val sb = StringBuilder(minOf(input.length, maxBytes))
+            var byteCount = 0
+            var index = 0
+            while (index < input.length) {
+                val cp = Character.codePointAt(input, index)
+                val charCount = Character.charCount(cp)
+                val cpBytes = when {
+                    cp <= 0x7F -> 1
+                    cp <= 0x7FF -> 2
+                    cp <= 0xFFFF -> 3
+                    else -> 4
+                }
+                if (byteCount + cpBytes > maxBytes) break
+                sb.appendCodePoint(cp)
+                byteCount += cpBytes
+                index += charCount
+            }
+            return sb.toString()
+        }
+
         fun normalizePackageName(raw: String, fallbackAppName: String): String {
             val cleaned = raw.lowercase()
                 .replace(Regex("[^a-z0-9.]"), "")

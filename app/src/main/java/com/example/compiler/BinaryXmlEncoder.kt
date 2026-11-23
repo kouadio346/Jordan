@@ -88,14 +88,14 @@ object BinaryXmlEncoder {
         val idxConfigChangesAttr = stringIndices.getValue("configChanges")
 
         val body = ByteArrayOutputStream()
-        body.writeBytes(buildStringPool(strings))
-        body.writeBytes(buildResourceMap(resAttrDefs.map { it.second }))
+        body.write(buildStringPool(strings))
+        body.write(buildResourceMap(resAttrDefs.map { it.second }))
 
         // Start android namespace
-        body.writeBytes(buildNamespaceNode(RES_XML_START_NAMESPACE_TYPE, 2, idxNsPrefix, idxNsUri))
+        body.write(buildNamespaceNode(RES_XML_START_NAMESPACE_TYPE, 2, idxNsPrefix, idxNsUri))
 
         // <manifest package="..." android:versionCode="..." android:versionName="...">
-        body.writeBytes(
+        body.write(
             buildStartElement(
                 line = 2,
                 ns = -1,
@@ -109,7 +109,7 @@ object BinaryXmlEncoder {
         )
 
         // <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
-        body.writeBytes(
+        body.write(
             buildStartElement(
                 line = 4,
                 ns = -1,
@@ -120,10 +120,10 @@ object BinaryXmlEncoder {
                 )
             )
         )
-        body.writeBytes(buildEndElement(4, -1, idxUsesSdk))
+        body.write(buildEndElement(4, -1, idxUsesSdk))
 
         // <uses-permission android:name="android.permission.INTERNET" />
-        body.writeBytes(
+        body.write(
             buildStartElement(
                 line = 5,
                 ns = -1,
@@ -133,10 +133,10 @@ object BinaryXmlEncoder {
                 )
             )
         )
-        body.writeBytes(buildEndElement(5, -1, idxUsesPerm))
+        body.write(buildEndElement(5, -1, idxUsesPerm))
 
         // <application android:label="..." android:icon="@drawable/ic_launcher" android:usesCleartextTraffic="true">
-        body.writeBytes(
+        body.write(
             buildStartElement(
                 line = 7,
                 ns = -1,
@@ -150,7 +150,7 @@ object BinaryXmlEncoder {
         )
 
         // <activity android:name=".MainActivity" android:exported="true" android:configChanges="0x480">
-        body.writeBytes(
+        body.write(
             buildStartElement(
                 line = 12,
                 ns = -1,
@@ -164,10 +164,10 @@ object BinaryXmlEncoder {
         )
 
         // <intent-filter>
-        body.writeBytes(buildStartElement(16, -1, idxIntentFilter, emptyList()))
+        body.write(buildStartElement(16, -1, idxIntentFilter, emptyList()))
 
         // <action android:name="android.intent.action.MAIN" />
-        body.writeBytes(
+        body.write(
             buildStartElement(
                 line = 17,
                 ns = -1,
@@ -177,10 +177,10 @@ object BinaryXmlEncoder {
                 )
             )
         )
-        body.writeBytes(buildEndElement(17, -1, idxAction))
+        body.write(buildEndElement(17, -1, idxAction))
 
         // <category android:name="android.intent.category.LAUNCHER" />
-        body.writeBytes(
+        body.write(
             buildStartElement(
                 line = 18,
                 ns = -1,
@@ -190,13 +190,13 @@ object BinaryXmlEncoder {
                 )
             )
         )
-        body.writeBytes(buildEndElement(18, -1, idxCategory))
+        body.write(buildEndElement(18, -1, idxCategory))
 
-        body.writeBytes(buildEndElement(19, -1, idxIntentFilter))
-        body.writeBytes(buildEndElement(20, -1, idxActivity))
-        body.writeBytes(buildEndElement(21, -1, idxApplication))
-        body.writeBytes(buildEndElement(22, -1, idxManifest))
-        body.writeBytes(buildNamespaceNode(RES_XML_END_NAMESPACE_TYPE, 22, idxNsPrefix, idxNsUri))
+        body.write(buildEndElement(19, -1, idxIntentFilter))
+        body.write(buildEndElement(20, -1, idxActivity))
+        body.write(buildEndElement(21, -1, idxApplication))
+        body.write(buildEndElement(22, -1, idxManifest))
+        body.write(buildNamespaceNode(RES_XML_END_NAMESPACE_TYPE, 22, idxNsPrefix, idxNsUri))
 
         val bodyBytes = body.toByteArray()
         val totalSize = 8 + bodyBytes.size
@@ -229,7 +229,7 @@ object BinaryXmlEncoder {
                 buf.putShort(c.code.toShort())
             }
             buf.putShort(0)
-            stringData.writeBytes(buf.array())
+            stringData.write(buf.array())
         }
         while (stringData.size() % 4 != 0) {
             stringData.write(0)

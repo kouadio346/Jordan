@@ -177,7 +177,7 @@ object DexBuilder {
                 for (param in p.params) {
                     buf.putShort(typeIdx.getValue(param).toShort())
                 }
-                dataStream.writeBytes(buf.array())
+                dataStream.write(buf.array())
             }
         }
 
@@ -187,7 +187,7 @@ object DexBuilder {
             stringDataOffsets[i] = currentDataFileOffset()
             val s = strings[i]
             writeUleb128(dataStream, s.length)
-            dataStream.writeBytes(encodeMutf8(s))
+            dataStream.write(encodeMutf8(s))
             dataStream.write(0)
         }
 
@@ -289,7 +289,7 @@ object DexBuilder {
             mapBuf.putInt(size)
             mapBuf.putInt(off)
         }
-        dataStream.writeBytes(mapBuf.array())
+        dataStream.write(mapBuf.array())
         val dataBytes = dataStream.toByteArray()
         val fileSize = dataOff + dataBytes.size
 
@@ -386,7 +386,7 @@ object DexBuilder {
         buf.putInt(0)   // debug_info_off
         buf.putInt(insns.size)
         for (s in insns) buf.putShort(s)
-        out.writeBytes(buf.array())
+        out.write(buf.array())
     }
 
     private fun writeUleb128(out: ByteArrayOutputStream, value: Int) {

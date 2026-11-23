@@ -123,6 +123,7 @@ fun CreateProjectScreen(
     var prompt by remember(initialTemplate) {
         mutableStateOf(initialTemplate?.prompt ?: "")
     }
+    var promptValidationError by remember { mutableStateOf(false) }
 
     val isGenerating = generationState is GenerationState.Generating
 
@@ -345,12 +346,22 @@ fun CreateProjectScreen(
                     value = prompt,
                     onValueChange = {
                         prompt = it
+                        if (it.isNotBlank()) promptValidationError = false
                         onClearError()
                     },
                     label = { Text("Prompt pour l'IA") },
                     placeholder = {
                         Text("Décrivez les écrans, mécaniques de jeu, contrôles tactiles, fonctionnalités...")
                     },
+                    isError = promptValidationError,
+                    supportingText = if (promptValidationError) {
+                        {
+                            Text(
+                                text = "Décrivez votre projet ci-dessus ou choisissez une idée rapide ci-dessous.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    } else null,
                     minLines = 4,
                     maxLines = 8,
                     colors = forgeTextFieldColors(),
@@ -377,7 +388,11 @@ fun CreateProjectScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .border(1.dp, ForgeBorder, RoundedCornerShape(12.dp))
-                                    .clickable { prompt = idea }
+                                    .clickable {
+                                        prompt = idea
+                                        promptValidationError = false
+                                        onClearError()
+                                    }
                             ) {
                                 Text(
                                     text = idea,
@@ -390,14 +405,14 @@ fun CreateProjectScreen(
                     }
                 }
 
-                if (generationState is GenerationState.Error) {
+                if (promptValidationError) {
                     Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = generationState.message,
+                            text = "Veuillez saisir une description du projet (section 4) ou toucher une idée rapide pour lancer la génération.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.padding(14.dp)
@@ -405,17 +420,59 @@ fun CreateProjectScreen(
                     }
                 }
 
+                if (generationState is GenerationState.Error) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = generationState.message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            OutlinedButton(
+                                onClick = onOpenAiKeys,
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.testTag("error_open_ai_keys_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Key,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Configurer une clé API IA (Gemini, OpenAI, Groq…)",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Button(
                     onClick = {
-                        onGenerateClick(
-                            prompt,
-                            selectedType,
-                            selectedLang,
-                            appName,
-                            packageName
-                        )
+                        if (prompt.isBlank()) {
+                            promptValidationError = true
+                        } else {
+                            promptValidationError = false
+                            onGenerateClick(
+                                prompt,
+                                selectedType,
+                                selectedLang,
+                                appName,
+                                packageName
+                            )
+                        }
                     },
-                    enabled = !isGenerating && prompt.isNotBlank(),
+                    enabled = !isGenerating,
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = ElectricCyan,
@@ -446,9 +503,14 @@ fun CreateProjectScreen(
 
                 OutlinedButton(
                     onClick = {
-                        onLaunchInSwarm(prompt, selectedType, selectedLang)
+                        if (prompt.isBlank()) {
+                            promptValidationError = true
+                        } else {
+                            promptValidationError = false
+                            onLaunchInSwarm(prompt, selectedType, selectedLang)
+                        }
                     },
-                    enabled = !isGenerating && prompt.isNotBlank(),
+                    enabled = !isGenerating,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()

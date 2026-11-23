@@ -42,7 +42,7 @@ class AiCodeGenerator(
             "summary" to Schema.string(description = "Concise French summary of architecture, gameplay/features, and files generated"),
             "files" to Schema.array(
                 items = fileSchema,
-                description = "4 to 6 complete source code files for the requested language and Android build configuration"
+                description = "3 to 5 concise, complete source code files for the requested language and Android build configuration"
             ),
             "playableHtml" to Schema.string(
                 description = "A complete, self-contained, offline-capable single-file HTML5 + CSS + JavaScript (or Canvas/WebGL) mobile-first interactive build of the exact app or game, with touch support, dark/modern UI matching accentHex, and zero external CDN imports."
@@ -57,6 +57,7 @@ class AiCodeGenerator(
                 responseMimeType = "application/json"
                 responseSchema = projectSchema
                 temperature = 0.7f
+                maxOutputTokens = 16384
             }
         )
     }
@@ -100,8 +101,8 @@ class AiCodeGenerator(
             CONTRAINTES TECHNIQUES :
             1. $langInstruction
             2. $nameHint $pkgHint
-            3. Génère 4 à 6 fichiers sources complets, authentiques et idiomatiques dans `files` (incluant le point d'entrée principal, la logique métier ou moteur de jeu, la configuration/build comme `AndroidManifest.xml` ou `build.gradle.kts` / `project.godot` / `pubspec.yaml`).
-            4. Génère un champ `playableHtml` qui est une application ou un jeu 100% FONCTIONNEL, JOUABLE ET INTERACTIF en une seule page HTML5 + CSS + JS/Canvas autonome (zéro CDN externe, zéro image externe, tout dessiné en Canvas/SVG/CSS), optimisé pour écran tactile mobile (viewport `width=device-width, initial-scale=1.0, user-scalable=no`, boutons tactiles / drag / tap fluides), avec un design ultra soigné utilisant la couleur `accentHex`. Ce bundle `playableHtml` sera exécuté en aperçu direct ET compilé dans l'APK Android final (`assets/index.html`) !
+            3. Génère 3 à 5 fichiers sources complets, concis et idiomatiques dans `files` (point d'entrée principal, logique métier ou moteur de jeu, et configuration build `AndroidManifest.xml` / `build.gradle.kts` ou équivalent moteur).
+            4. Génère un champ `playableHtml` compact et complet qui est une application ou un jeu 100% FONCTIONNEL, JOUABLE ET INTERACTIF en une seule page HTML5 + CSS + JS/Canvas autonome (zéro CDN externe, zéro image externe, tout dessiné en Canvas/SVG/CSS), optimisé pour écran tactile mobile (viewport `width=device-width, initial-scale=1.0, user-scalable=no`, boutons tactiles / drag / tap fluides), avec un design soigné utilisant `accentHex`. Ce bundle sera exécuté en aperçu direct ET compilé dans l'APK Android final (`assets/index.html`) !
             5. Rédige `summary` en français clair.
             6. Réponds UNIQUEMENT par un objet JSON valide respectant exactement la structure suivante :
                {"appName":"...","packageName":"com.forge....","versionName":"1.0.0","detectedLanguage":"...","accentHex":"#00E5FF","summary":"...","files":[{"path":"...","language":"...","content":"..."}],"playableHtml":"<!DOCTYPE html>..."}
@@ -162,36 +163,46 @@ class AiCodeGenerator(
             val outcome = multiAiClient.generateStructuredJson(
                 systemAndPrompt = fullPrompt,
                 builtinCall = {
-                    val response = withTimeout(60_000L) {
+                    val response = withTimeout(90_000L) {
                         model.generateContent(fullPrompt)
                     }
                     response.text ?: throw IllegalStateException("L'IA a renvoyé une réponse vide.")
                 }
             )
-            val jsonText = outcome.jsonText
+            val jsonText = MultiAiClient.extractJsonObject(outcome.jsonText)
             if (jsonText.isBlank()) {
                 return Result.failure(IllegalStateException("L'IA a renvoyé une réponse vide."))
             }
 
             val obj = JSONObject(jsonText)
-            val appName = obj.optString("appName", "ForgeApp").trim().ifBlank { "ForgeApp" }.take(60)
+            val rawAppName = obj.optString("appName", "").trim()
+            val appName = ProjectRepository.trimToUtf8Bytes(rawAppName.ifBlank { "ForgeApp" }, 60).ifBlank { "ForgeApp" }
             val rawPkg = obj.optString("packageName", "")
             val packageName = ProjectRepository.normalizePackageName(rawPkg, appName)
-            val versionName = obj.optString("versionName", "1.0.0").trim().ifBlank { "1.0.0" }.take(20)
-            val detectedLang = obj.optString("detectedLanguage", "Kotlin").trim().ifBlank { "Kotlin" }.take(40)
+            val versionName = ProjectRepository.trimToUtf8Bytes(
+                obj.optString("versionName", "1.0.0").trim().ifBlank { "1.0.0" },
+                20
+            ).ifBlank { "1.0.0" }
+            val detectedLang = ProjectRepository.trimToUtf8Bytes(
+                obj.optString("detectedLanguage", "Kotlin").trim().ifBlank { "Kotlin" },
+                40
+            ).ifBlank { "Kotlin" }
             val accentRaw = obj.optString("accentHex", "#00E5FF").trim()
             val accentHex = if (accentRaw.matches(Regex("^#[0-9A-Fa-f]{6}$"))) accentRaw else "#00E5FF"
-            val summary = obj.optString("summary", "").trim().take(2000)
-            val playableHtml = obj.optString("playableHtml", "").trim().take(350000)
+            val summary = ProjectRepository.trimToUtf8Bytes(obj.optString("summary", "").trim(), 2000)
+            val playableHtml = ProjectRepository.trimToUtf8Bytes(obj.optString("playableHtml", "").trim(), 250_000)
 
             val filesArray = obj.optJSONArray("files")
             val files = mutableListOf<ProjectFile>()
             if (filesArray != null) {
                 for (i in 0 until filesArray.length().coerceAtMost(12)) {
                     val fileObj = filesArray.optJSONObject(i) ?: continue
-                    val path = fileObj.optString("path", "").trim()
-                    val lang = fileObj.optString("language", detectedLang).trim().ifBlank { detectedLang }
-                    val content = fileObj.optString("content", "")
+                    val path = ProjectRepository.trimToUtf8Bytes(fileObj.optString("path", "").trim(), 240)
+                    val lang = ProjectRepository.trimToUtf8Bytes(
+                        fileObj.optString("language", detectedLang).trim().ifBlank { detectedLang },
+                        40
+                    ).ifBlank { detectedLang }
+                    val content = ProjectRepository.trimToUtf8Bytes(fileObj.optString("content", ""), 45_000)
                     if (path.isNotBlank() && content.isNotBlank()) {
                         files.add(ProjectFile(path = path, language = lang, content = content))
                     }
@@ -199,7 +210,29 @@ class AiCodeGenerator(
             }
 
             if (files.isEmpty()) {
-                return Result.failure(IllegalStateException("Aucun fichier source généré par l'IA."))
+                if (playableHtml.isNotBlank()) {
+                    files.add(
+                        ProjectFile(
+                            path = "app/src/main/assets/index.html",
+                            language = "HTML",
+                            content = playableHtml
+                        )
+                    )
+                } else if (rawAppName.isNotBlank() && summary.isNotBlank()) {
+                    files.add(
+                        ProjectFile(
+                            path = "app/src/main/java/${packageName.replace('.', '/')}/MainActivity.kt",
+                            language = detectedLang,
+                            content = "package $packageName\n\n// $appName ($detectedLang)\n// $summary\n"
+                        )
+                    )
+                } else {
+                    return Result.failure(
+                        IllegalStateException(
+                            "L'IA n'a renvoyé aucun fichier source exploitable (${outcome.engineBadge}). Réessayez ou testez un autre modèle dans Clés API IA."
+                        )
+                    )
+                }
             }
 
             val finalHtml = playableHtml.ifBlank {
@@ -215,7 +248,7 @@ class AiCodeGenerator(
                         versionCode = 1L,
                         appType = appType.name,
                         language = detectedLang,
-                        prompt = originalPrompt.take(2000),
+                        prompt = ProjectRepository.trimToUtf8Bytes(originalPrompt.trim(), 2000).ifBlank { appName },
                         summary = summary,
                         accentHex = accentHex,
                         playableHtml = finalHtml,
@@ -227,12 +260,16 @@ class AiCodeGenerator(
             )
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "AI generation timed out", e)
-            Result.failure(IllegalStateException("La génération IA a expiré après 60 secondes. Veuillez réessayer avec une description plus ciblée."))
+            Result.failure(
+                IllegalStateException(
+                    "La génération IA a expiré après 90 secondes. Simplifiez légèrement votre description ou utilisez une clé API dédiée dans Clés API IA."
+                )
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "AI generation failed", e)
-            Result.failure(e)
+            Result.failure(formatAiError(e))
         }
     }
 
@@ -267,5 +304,25 @@ class AiCodeGenerator(
 
     private companion object {
         const val TAG = "AiCodeGenerator"
+
+        fun formatAiError(error: Throwable): IllegalStateException {
+            val raw = error.localizedMessage.orEmpty()
+            val lower = raw.lowercase()
+            val message = when {
+                "403" in lower || "app check" in lower || "appcheck" in lower ||
+                    "attestation" in lower || "unauthenticated" in lower ->
+                    "Accès Firebase IA refusé (${raw.take(120)}). Vérifiez App Check ou ajoutez une clé API gratuite/personnelle (Gemini, Groq, OpenAI, DeepSeek) via le bouton Clés IA en haut à droite."
+                "quota" in lower || "429" in lower || "resource_exhausted" in lower ->
+                    "Quota IA temporairement dépassé. Patientez quelques instants ou activez une autre clé dans Clés API IA."
+                "unknownhost" in lower || "unable to resolve host" in lower ||
+                    "connect" in lower || "network" in lower || "sockettimeout" in lower ->
+                    "Connexion réseau instable pendant la génération IA. Vérifiez votre accès Internet et réessayez."
+                "json" in lower || "unterminated" in lower || "end of input" in lower ->
+                    "La réponse JSON de l'IA a été interrompue en cours de route. Réessayez avec une description un peu plus courte ou changez de moteur IA."
+                raw.isNotBlank() -> raw
+                else -> "Erreur inattendue lors de la génération IA (${error.javaClass.simpleName})."
+            }
+            return IllegalStateException(message, error)
+        }
     }
 }
