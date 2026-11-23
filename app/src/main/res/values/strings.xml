@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">ForgeAPK</string>
+    <string name="sign_in_google">Se connecter avec Google</string>
+    <string name="auth_subtitle">Créez des applications Android et des jeux vidéo dans n\'importe quel langage avec l\'IA, puis compilez et exportez leur fichier APK signé.</string>
+    <string name="create_new_project">Créer une App / un Jeu</string>
+    <string name="compile_apk">Compiler &amp; Signer l\'APK</string>
+    <string name="download_apk">Télécharger (.apk)</string>
+    <string name="share_apk">Partager (.apk)</string>
+    <string name="export_sources">Sources (.zip)</string>
+    <string name="export_github">Publier sur GitHub</string>
+</resources>

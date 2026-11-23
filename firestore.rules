@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidProject(data, userId) {
+      return data.userId is string && data.userId == userId && data.userId.size() <= 128 &&
+             data.appName is string && data.appName.size() >= 1 && data.appName.size() <= 60 &&
+             data.packageName is string && data.packageName.size() >= 3 && data.packageName.size() <= 120 &&
+             data.versionName is string && data.versionName.size() >= 1 && data.versionName.size() <= 20 &&
+             data.versionCode is int && data.versionCode >= 1 && data.versionCode <= 999999 &&
+             data.appType in ['ANDROID_APP', 'GAME'] &&
+             data.language is string && data.language.size() >= 1 && data.language.size() <= 40 &&
+             data.prompt is string && data.prompt.size() >= 1 && data.prompt.size() <= 2000 &&
+             data.summary is string && data.summary.size() <= 2000 &&
+             data.accentHex is string && data.accentHex.size() >= 4 && data.accentHex.size() <= 12 &&
+             data.playableHtml is string && data.playableHtml.size() <= 350000 &&
+             data.files is list && data.files.size() >= 1 && data.files.size() <= 12 &&
+             data.files[0] is map &&
+             (!('lastBuildApkName' in data) || (data.lastBuildApkName is string && data.lastBuildApkName.size() >= 1 && data.lastBuildApkName.size() <= 120)) &&
+             (!('lastBuildSizeBytes' in data) || (data.lastBuildSizeBytes is int && data.lastBuildSizeBytes >= 0)) &&
+             (!('lastBuildSha256' in data) || (data.lastBuildSha256 is string && data.lastBuildSha256.size() >= 1 && data.lastBuildSha256.size() <= 128));
+    }
+
+    function isValidChatMessage(data, userId) {
+      return data.userId is string && data.userId == userId && data.userId.size() <= 128 &&
+             data.sessionId is string && data.sessionId.size() >= 1 && data.sessionId.size() <= 128 &&
+             data.role in ['USER', 'MODEL'] &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 30000 &&
+             data.suggestions is list && data.suggestions.size() <= 8 &&
+             (data.suggestions.size() == 0 || data.suggestions[0] is map) &&
+             data.followUps is list && data.followUps.size() <= 5 &&
+             (data.followUps.size() == 0 || data.followUps[0] is string);
+    }
+
+    match /users/{userId}/projects/{projectId} {
+      allow list: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn() && isValidId(projectId) && request.auth.uid == userId;
+
+      allow create: if isSignedIn() &&
+                       isValidId(projectId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'appName', 'packageName', 'versionName', 'versionCode',
+                         'appType', 'language', 'prompt', 'summary', 'accentHex',
+                         'playableHtml', 'files', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'appName', 'packageName', 'versionName', 'versionCode',
+                         'appType', 'language', 'prompt', 'summary', 'accentHex',
+                         'playableHtml', 'files', 'lastBuildApkName', 'lastBuildSizeBytes',
+                         'lastBuildSha256', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       incoming().updatedAt is timestamp &&
+                       incoming().updatedAt <= request.time &&
+                       isValidProject(incoming(), userId);
+
+      allow update: if isSignedIn() &&
+                       isValidId(projectId) &&
+                       request.auth.uid == userId &&
+                       isValidProject(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().updatedAt is timestamp &&
+                       incoming().updatedAt <= request.time &&
+                       (
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'appName', 'packageName', 'versionName', 'versionCode',
+                           'language', 'prompt', 'summary', 'accentHex',
+                           'playableHtml', 'files', 'updatedAt'
+                         ]) ||
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'lastBuildApkName', 'lastBuildSizeBytes', 'lastBuildSha256', 'updatedAt'
+                         ])
+                       );
+
+      allow delete: if isSignedIn() && isValidId(projectId) && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/chat_messages/{messageId} {
+      allow list: if isSignedIn() && request.auth.uid == userId;
+      allow get: if isSignedIn() && isValidId(messageId) && request.auth.uid == userId;
+
+      allow create: if isSignedIn() &&
+                       isValidId(messageId) &&
+                       request.auth.uid == userId &&
+                       incoming().keys().hasAll([
+                         'userId', 'sessionId', 'role', 'text', 'suggestions', 'followUps', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'sessionId', 'role', 'text', 'suggestions', 'followUps', 'createdAt'
+                       ]) &&
+                       incoming().createdAt is timestamp &&
+                       incoming().createdAt <= request.time &&
+                       isValidChatMessage(incoming(), userId);
+
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(messageId) && request.auth.uid == userId;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "ForgeAPK",
+  "description": "Studio de création d'applications et jeux par IA multi-langages avec compilation et export APK.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

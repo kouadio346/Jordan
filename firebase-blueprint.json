@@ -1,0 +1,92 @@
+{
+  "entities": {
+    "ProjectFile": {
+      "title": "ProjectFile",
+      "description": "A generated source code file inside an app or game project.",
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "description": "Relative file path in project" },
+        "language": { "type": "string", "description": "Programming language of file" },
+        "content": { "type": "string", "description": "Source code content" }
+      },
+      "required": ["path", "language", "content"]
+    },
+    "AppProject": {
+      "title": "AppProject",
+      "description": "An AI-generated Android application or game project with multi-language source files, playable runtime bundle, and compiled APK metadata.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "appName": { "type": "string", "description": "Display name of the generated app or game" },
+        "packageName": { "type": "string", "description": "Android applicationId / package name" },
+        "versionName": { "type": "string", "description": "Semantic version name" },
+        "versionCode": { "type": "integer", "description": "Numeric version code" },
+        "appType": { "type": "string", "enum": ["ANDROID_APP", "GAME"], "description": "Project category" },
+        "language": { "type": "string", "description": "Primary programming language or game engine" },
+        "prompt": { "type": "string", "description": "User prompt that generated the project" },
+        "summary": { "type": "string", "description": "AI architecture summary" },
+        "accentHex": { "type": "string", "description": "Hex color for app icon and theme" },
+        "playableHtml": { "type": "string", "description": "Self-contained HTML5/Canvas/JS executable bundle packaged into APK assets" },
+        "files": { "type": "array", "description": "List of ProjectFile objects (max 12)" },
+        "lastBuildApkName": { "type": "string", "description": "Filename of last compiled signed APK" },
+        "lastBuildSizeBytes": { "type": "integer", "description": "Byte size of last compiled APK" },
+        "lastBuildSha256": { "type": "string", "description": "SHA-256 digest of last compiled APK" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation (FieldValue.serverTimestamp())" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update (FieldValue.serverTimestamp())" }
+      },
+      "required": [
+        "userId",
+        "appName",
+        "packageName",
+        "versionName",
+        "versionCode",
+        "appType",
+        "language",
+        "prompt",
+        "summary",
+        "accentHex",
+        "playableHtml",
+        "files",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CodeSuggestion": {
+      "title": "CodeSuggestion",
+      "description": "A structured code snippet suggestion returned inside a conversational AI message.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Short label for the suggestion" },
+        "filePath": { "type": "string", "description": "Target file path" },
+        "language": { "type": "string", "description": "Code language" },
+        "code": { "type": "string", "description": "Suggested source code" }
+      },
+      "required": ["title", "filePath", "language", "code"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A turn in the conversational AI code architect session.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Firebase Auth UID" },
+        "sessionId": { "type": "string", "description": "Session key (global_architect or project_<id>)" },
+        "role": { "type": "string", "enum": ["USER", "MODEL"], "description": "Message author role" },
+        "text": { "type": "string", "description": "Conversational message body" },
+        "suggestions": { "type": "array", "description": "CodeSuggestion objects (max 8)" },
+        "followUps": { "type": "array", "description": "Follow-up prompt strings (max 5)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation (FieldValue.serverTimestamp())" }
+      },
+      "required": ["userId", "sessionId", "role", "text", "suggestions", "followUps", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/projects/{projectId}": {
+      "schema": { "$ref": "#/entities/AppProject" },
+      "description": "User-owned generated app and game projects"
+    },
+    "/users/{userId}/chat_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "User-owned conversational AI code generation messages"
+    }
+  }
+}
