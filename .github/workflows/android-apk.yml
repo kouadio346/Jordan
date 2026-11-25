@@ -28,11 +28,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21 (Temurin)
+      - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "17"
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -40,22 +40,25 @@ jobs:
       - name: Install Android SDK API 36 / 36.1 & Build Tools 36.0.0
         shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --update
-          sdkmanager \
+          set +o pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          set -o pipefail
+          sdkmanager --install \
             "platform-tools" \
             "platforms;android-36" \
             "platforms;android-36.1" \
             "build-tools;36.0.0"
 
       - name: Prepare debug keystore (debugConfig)
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         shell: bash
         run: |
-          if [ -n "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 --decode > debug.keystore
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            printf '%s' "$DEBUG_KEYSTORE_BASE64" | tr -d '\r\n ' | base64 --decode > debug.keystore
             echo "Restored debug.keystore from GitHub secret DEBUG_KEYSTORE_BASE64."
           elif [ -f debug.keystore.base64 ]; then
-            base64 --decode debug.keystore.base64 > debug.keystore
+            tr -d '\r\n ' < debug.keystore.base64 | base64 --decode > debug.keystore
             echo "Restored debug.keystore from debug.keystore.base64."
           elif [ ! -f debug.keystore ]; then
             keytool -genkeypair -v \
@@ -71,39 +74,54 @@ jobs:
           fi
 
       - name: Prepare Firebase & Secrets configuration
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          ENV_FILE: ${{ secrets.ENV_FILE }}
         shell: bash
         run: |
-          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" ]; then
-            echo "${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}" | base64 --decode > app/google-services.json
+          if [ -n "$GOOGLE_SERVICES_JSON_BASE64" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | tr -d '\r\n ' | base64 --decode > app/google-services.json
             echo "Applied GOOGLE_SERVICES_JSON_BASE64 secret."
           fi
-          if [ -n "${{ secrets.ENV_FILE }}" ]; then
-            printf '%s\n' "${{ secrets.ENV_FILE }}" > .env
+          if [ -n "$ENV_FILE" ]; then
+            printf '%s\n' "$ENV_FILE" > .env
             echo "Applied ENV_FILE secret."
           elif [ ! -f .env ] && [ -f .env.example ]; then
             cp .env.example .env
             echo "Copied .env.example to .env."
           fi
 
-      - name: Set up Gradle (Wrapper 9.3.1 + Cache)
+      - name: Set up Gradle 9.3.1 & Cache
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: wrapper
-
-      - name: Make Gradle Wrapper executable
-        run: chmod +x ./gradlew
-
-      - name: Run Debug Unit Tests
-        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+          gradle-version: "9.3.1"
 
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace --info
+        shell: bash
+        run: |
+          if [ -f ./gradlew ] && [ -f gradle/wrapper/gradle-wrapper.jar ]; then
+            sed -i 's/\r$//' ./gradlew
+            chmod +x ./gradlew
+            ./gradlew :app:assembleDebug --no-daemon --stacktrace --info
+          else
+            echo "Gradle wrapper incomplete or absent, using Gradle 9.3.1 from setup-gradle."
+            gradle :app:assembleDebug --no-daemon --stacktrace --info
+          fi
 
       - name: Verify generated APK
         shell: bash
         run: |
           ls -lh app/build/outputs/apk/debug/
           test -f app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Run Debug Unit Tests
+        shell: bash
+        run: |
+          if [ -f ./gradlew ] && [ -f gradle/wrapper/gradle-wrapper.jar ]; then
+            ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+          else
+            gradle :app:testDebugUnitTest --no-daemon --stacktrace
+          fi
 
       - name: Upload Debug APK artifact
         uses: actions/upload-artifact@v4
